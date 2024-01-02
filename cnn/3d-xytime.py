@@ -35,10 +35,7 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
     clean_files = sorted(os.listdir(clean_downsampled_dir))
 
     for i, (noisy_file, clean_file) in enumerate(zip(noisy_files, clean_files)):
-        print(noisy_file)
-
-        if noisy_file != "t58786":
-            continue
+        print("Training model on file", noisy_file)
 
         noisy_file_path = os.path.join(noisy_downsampled_dir, noisy_file)
         clean_file_path = os.path.join(clean_downsampled_dir, clean_file)
@@ -55,11 +52,6 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
         normalized_randoms = []
 
         for z in range(z_depth):
-            print(z)
-            print('shape of the volume')
-            print(downsampled_average_volume.shape)
-            print(downsampled_random_volume.shape)
-
             min_value = min(np.min(downsampled_average_volume[z]), np.min(downsampled_random_volume[z]))
             max_value = max(np.max(downsampled_average_volume[z]), np.max(downsampled_random_volume[z]))
 
@@ -71,20 +63,17 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
             normalized_randoms.append(np.expand_dims(np.expand_dims(normalized_random, axis=0), axis=-1))
 
         for z, (normalized_random, normalized_average) in enumerate(zip(normalized_randoms, normalized_averages)):
-            print('now abotu to hit model')
-            print(z)
-            print(normalized_random.shape)
-            print(normalized_average.shape)
+            model.fit(normalized_random, normalized_average, epochs=1, batch_size=1)
+            
+            # This demonstrates how to use a threshold callback. This is not necessary to use, but it can help cut down on unneeded epochs.
 
-            stop_at_threshold_callback = StopAtThresholdCallback(threshold=0.00009)
-            model.fit(normalized_random, normalized_average, epochs=120, batch_size=1)
+            #stop_at_threshold_callback = StopAtThresholdCallback(threshold=0.00009)
             # model.fit(normalized_random, normalized_average, epochs=175, batch_size=1, callbacks=[stop_at_threshold_callback])
 
-        # if i == len(noisy_files) - 1:
-        if True:
-            print("hello there")
-            print(len(normalized_randoms))
+        # We test denoise one of the images. Yes, this is one of the images we trained on. So we are denoising an image that is in the training data.
+        # This is bad, I know. But you can fix it!
 
+        if i == len(noisy_files) - 1:
             NUM_GATES = 12
             original_shape = (NUM_GATES, 200, 380, 380)
             cropped_shape = (NUM_GATES, 200, 200, 200)
@@ -93,8 +82,7 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
             cropped_coronal_slice_index = calculate_cropped_index_of_interest(144, 'rows', original_shape, cropped_shape)
             z = calculate_downsampled_index_of_interest(cropped_shape[1:], cropped_downsampled_shape[1:], 'rows', cropped_coronal_slice_index)
 
-            print('predicting')
-            print(normalized_randoms[z].shape)
+            print('Denoising...')
             
             predicted_volume = model.predict(normalized_randoms[z])
 
@@ -102,11 +90,6 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
 
 
 def plot_results(original_clean_volume, noisy_volume, denoised_volume, src_file_name):
-    print('about to end')
-    print(noisy_volume.shape)
-    print(original_clean_volume.shape)
-    print(denoised_volume.shape)
-
     plt.figure(figsize=(10, 10))
 
     clean_volume_plottable_img = original_clean_volume[0, 0, :, :, 0]
