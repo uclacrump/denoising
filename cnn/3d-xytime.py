@@ -34,7 +34,7 @@ class StopAtThresholdCallback(tf.keras.callbacks.Callback):
                 print(f"Training stopped as loss {loss} is less than {self.threshold}")
 
 # Train the model using images from the specified directories
-def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
+def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model):
     noisy_files = sorted(os.listdir(noisy_downsampled_dir))
     clean_files = sorted(os.listdir(clean_downsampled_dir))
 
@@ -170,4 +170,4 @@ if __name__ == "__main__":
 
     model.compile(optimizer=optimizers.Adam(learning_rate=0.001), loss='mean_squared_error')
 
-    train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir)
+    train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model)
