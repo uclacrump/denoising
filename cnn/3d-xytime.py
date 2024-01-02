@@ -90,6 +90,12 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
 
             plot_results(normalized_averages[z], normalized_randoms[z], predicted_volume, noisy_file)
 
+    # Save the model after training is completed
+    model_save_path = 'data/models/' + get_current_moment()
+    os.makedirs(os.path.dirname(model_save_path), exist_ok=True)
+    model.save(model_save_path)
+    print(f"Model saved at {model_save_path}")
+
 # Plot and save the results of denoising
 def plot_results(original_clean_volume, noisy_volume, denoised_volume, src_file_name):
     plt.figure(figsize=(10, 10))
@@ -164,5 +170,4 @@ if __name__ == "__main__":
 
     model.compile(optimizer=optimizers.Adam(learning_rate=0.001), loss='mean_squared_error')
 
-    # Begin training the model
     train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir)
