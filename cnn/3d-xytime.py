@@ -34,7 +34,7 @@ class StopAtThresholdCallback(tf.keras.callbacks.Callback):
                 print(f"Training stopped as loss {loss} is less than {self.threshold}")
 
 # Train the model using images from the specified directories
-def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model):
+def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model, is_pretrained):
     noisy_files = sorted(os.listdir(noisy_downsampled_dir))
     clean_files = sorted(os.listdir(clean_downsampled_dir))
 
@@ -67,12 +67,13 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model
             normalized_randoms.append(np.expand_dims(np.expand_dims(normalized_random, axis=0), axis=-1))
 
         # Train the model on each z-slice
-        for z, (normalized_random, normalized_average) in enumerate(zip(normalized_randoms, normalized_averages)):
-            model.fit(normalized_random, normalized_average, epochs=1, batch_size=1)
-            
-            # Optional: use threshold callback to stop training early
-            # stop_at_threshold_callback = StopAtThresholdCallback(threshold=0.00009)
-            # model.fit(normalized_random, normalized_average, epochs=175, batch_size=1, callbacks=[stop_at_threshold_callback])
+        if not is_pretrained:
+            for z, (normalized_random, normalized_average) in enumerate(zip(normalized_randoms, normalized_averages)):
+                model.fit(normalized_random, normalized_average, epochs=1, batch_size=1)
+                
+                # Optional: use threshold callback to stop training early
+                # stop_at_threshold_callback = StopAtThresholdCallback(threshold=0.00009)
+                # model.fit(normalized_random, normalized_average, epochs=175, batch_size=1, callbacks=[stop_at_threshold_callback])
 
         # Denoise one of the images (for demonstration purposes)
         if i == len(noisy_files) - 1:
@@ -143,31 +144,40 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Train model with noisy and clean directories.')
     parser.add_argument('noisy_downsampled_dir', type=str, help='Path to the directory containing noisy downsampled volumes.')
     parser.add_argument('clean_downsampled_dir', type=str, help='Path to the directory containing clean downsampled volumes.')
+    parser.add_argument('--pretrained_model_dir', type=str, help='Optional path to a pretrained model directory.', default=None)
+
 
     args = parser.parse_args()
 
     noisy_downsampled_dir = args.noisy_downsampled_dir
     clean_downsampled_dir = args.clean_downsampled_dir
+    pretrained_model_dir = args.pretrained_model_dir
 
-    # Define and compile the model
-    model = models.Sequential([
-        layers.Conv3D(16, (3, 3, 3), activation='relu', padding='same', input_shape=(12, 100, 100, 1)),
-        layers.BatchNormalization(),
-        layers.MaxPooling3D((2, 2, 2), padding='same'),
-        layers.Conv3D(32, (3, 3, 3), activation='relu', padding='same'),
-        layers.BatchNormalization(),
-        layers.MaxPooling3D((2, 2, 2), padding='same'),
-        layers.Conv3D(64, (3, 3, 3), activation='relu', padding='same'),
-        layers.BatchNormalization(),
-        layers.UpSampling3D((2, 2, 2)),
-        layers.Conv3D(32, (3, 3, 3), activation='relu', padding='same'),
-        layers.BatchNormalization(),
-        layers.UpSampling3D((2, 2, 2)),
-        layers.Conv3D(1, (3, 3, 3), activation='sigmoid', padding='same')
-    ])
+    if pretrained_model_dir:
+        print(f"Loading pretrained model from {pretrained_model_dir}")
+        model = load_model(pretrained_model_dir)
+        model.summary()
+        train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model, True)
+    else:
+        # Define and compile the model
+        model = models.Sequential([
+            layers.Conv3D(16, (3, 3, 3), activation='relu', padding='same', input_shape=(12, 100, 100, 1)),
+            layers.BatchNormalization(),
+            layers.MaxPooling3D((2, 2, 2), padding='same'),
+            layers.Conv3D(32, (3, 3, 3), activation='relu', padding='same'),
+            layers.BatchNormalization(),
+            layers.MaxPooling3D((2, 2, 2), padding='same'),
+            layers.Conv3D(64, (3, 3, 3), activation='relu', padding='same'),
+            layers.BatchNormalization(),
+            layers.UpSampling3D((2, 2, 2)),
+            layers.Conv3D(32, (3, 3, 3), activation='relu', padding='same'),
+            layers.BatchNormalization(),
+            layers.UpSampling3D((2, 2, 2)),
+            layers.Conv3D(1, (3, 3, 3), activation='sigmoid', padding='same')
+        ])
 
-    model.summary()
+        model.summary()
 
-    model.compile(optimizer=optimizers.Adam(learning_rate=0.001), loss='mean_squared_error')
+        model.compile(optimizer=optimizers.Adam(learning_rate=0.001), loss='mean_squared_error')
 
-    train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model)
+        train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model, False)
