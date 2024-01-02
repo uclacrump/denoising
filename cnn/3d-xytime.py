@@ -11,11 +11,13 @@ from datetime import datetime
 
 from misc import load_images, calculate_cropped_index_of_interest, calculate_downsampled_index_of_interest
 
+# Get the current date and time, formatted as YYYY-MM-DD-HH-MM
 def get_current_moment():
     current_moment = datetime.now()
     formatted_moment = current_moment.strftime("%Y-%m-%d-%H-%M")
     return formatted_moment
 
+# Custom callback for stopping the training when loss falls below a specified threshold
 class StopAtThresholdCallback(tf.keras.callbacks.Callback):
     def __init__(self, threshold):
         super(StopAtThresholdCallback, self).__init__()
@@ -23,6 +25,7 @@ class StopAtThresholdCallback(tf.keras.callbacks.Callback):
         self.num_times_below_threshold = 0
     
     def on_epoch_end(self, epoch, logs=None):
+        # Check if the loss is below the threshold and stop training if the condition is met for consecutive epochs
         loss = logs.get('loss')
         if loss is not None and loss < self.threshold:
             self.num_times_below_threshold += 1
@@ -30,6 +33,7 @@ class StopAtThresholdCallback(tf.keras.callbacks.Callback):
                 self.model.stop_training = True
                 print(f"Training stopped as loss {loss} is less than {self.threshold}")
 
+# Train the model using images from the specified directories
 def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
     noisy_files = sorted(os.listdir(noisy_downsampled_dir))
     clean_files = sorted(os.listdir(clean_downsampled_dir))
@@ -40,6 +44,7 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
         noisy_file_path = os.path.join(noisy_downsampled_dir, noisy_file)
         clean_file_path = os.path.join(clean_downsampled_dir, clean_file)
 
+        # Load and preprocess the images for training
         downsampled_average_volume = load_images(clean_file_path, (12, 100, 100, 100))
         downsampled_random_volume = load_images(noisy_file_path, (12, 100, 100, 100))
 
@@ -55,24 +60,21 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
             min_value = min(np.min(downsampled_average_volume[z]), np.min(downsampled_random_volume[z]))
             max_value = max(np.max(downsampled_average_volume[z]), np.max(downsampled_random_volume[z]))
 
-
             normalized_average = (downsampled_average_volume[z] - min_value) / (max_value - min_value)
             normalized_random = (downsampled_random_volume[z] - min_value) / (max_value - min_value)
             
             normalized_averages.append(np.expand_dims(np.expand_dims(normalized_average, axis=0), axis=-1))
             normalized_randoms.append(np.expand_dims(np.expand_dims(normalized_random, axis=0), axis=-1))
 
+        # Train the model on each z-slice
         for z, (normalized_random, normalized_average) in enumerate(zip(normalized_randoms, normalized_averages)):
             model.fit(normalized_random, normalized_average, epochs=1, batch_size=1)
             
-            # This demonstrates how to use a threshold callback. This is not necessary to use, but it can help cut down on unneeded epochs.
-
-            #stop_at_threshold_callback = StopAtThresholdCallback(threshold=0.00009)
+            # Optional: use threshold callback to stop training early
+            # stop_at_threshold_callback = StopAtThresholdCallback(threshold=0.00009)
             # model.fit(normalized_random, normalized_average, epochs=175, batch_size=1, callbacks=[stop_at_threshold_callback])
 
-        # We test denoise one of the images. Yes, this is one of the images we trained on. So we are denoising an image that is in the training data.
-        # This is bad, I know. But you can fix it!
-
+        # Denoise one of the images (for demonstration purposes)
         if i == len(noisy_files) - 1:
             NUM_GATES = 12
             original_shape = (NUM_GATES, 200, 380, 380)
@@ -88,7 +90,7 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir):
 
             plot_results(normalized_averages[z], normalized_randoms[z], predicted_volume, noisy_file)
 
-
+# Plot and save the results of denoising
 def plot_results(original_clean_volume, noisy_volume, denoised_volume, src_file_name):
     plt.figure(figsize=(10, 10))
 
@@ -131,6 +133,7 @@ def plot_results(original_clean_volume, noisy_volume, denoised_volume, src_file_
 
 
 if __name__ == "__main__":
+    # Parse command line arguments for input directories
     parser = argparse.ArgumentParser(description='Train model with noisy and clean directories.')
     parser.add_argument('noisy_downsampled_dir', type=str, help='Path to the directory containing noisy downsampled volumes.')
     parser.add_argument('clean_downsampled_dir', type=str, help='Path to the directory containing clean downsampled volumes.')
@@ -140,6 +143,7 @@ if __name__ == "__main__":
     noisy_downsampled_dir = args.noisy_downsampled_dir
     clean_downsampled_dir = args.clean_downsampled_dir
 
+    # Define and compile the model
     model = models.Sequential([
         layers.Conv3D(16, (3, 3, 3), activation='relu', padding='same', input_shape=(12, 100, 100, 1)),
         layers.BatchNormalization(),
@@ -160,4 +164,5 @@ if __name__ == "__main__":
 
     model.compile(optimizer=optimizers.Adam(learning_rate=0.001), loss='mean_squared_error')
 
+    # Begin training the model
     train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir)
