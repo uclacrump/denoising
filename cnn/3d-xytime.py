@@ -98,6 +98,7 @@ def plot_results(original_clean_volume, noisy_volume, denoised_volume, src_file_
 
     # Normalize images to [0, 255] and convert to uint8 for saving as PNG
     def normalize_and_save(img, path):
+        print("Saving output to", path)
         img = np.squeeze(img)  # Remove singleton dimensions if any
         img = ((img - np.min(img)) / (np.max(img) - np.min(img))) * 255.0
         img = img.astype(np.uint8)
