@@ -3,6 +3,7 @@ import sys
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras import layers, models, optimizers, callbacks
+from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
 import os
 import argparse
@@ -39,7 +40,8 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model
     clean_files = sorted(os.listdir(clean_downsampled_dir))
 
     for i, (noisy_file, clean_file) in enumerate(zip(noisy_files, clean_files)):
-        print("Training model on file", noisy_file)
+        if not is_pretrained:
+            print("Training model on file", noisy_file)
 
         noisy_file_path = os.path.join(noisy_downsampled_dir, noisy_file)
         clean_file_path = os.path.join(clean_downsampled_dir, clean_file)
@@ -92,10 +94,11 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model
             plot_results(normalized_averages[z], normalized_randoms[z], predicted_volume, noisy_file)
 
     # Save the model after training is completed
-    model_save_path = 'data/models/' + get_current_moment()
-    os.makedirs(os.path.dirname(model_save_path), exist_ok=True)
-    model.save(model_save_path)
-    print(f"Model saved at {model_save_path}")
+    if not is_pretrained:
+        model_save_path = 'data/models/' + get_current_moment()
+        os.makedirs(os.path.dirname(model_save_path), exist_ok=True)
+        model.save(model_save_path)
+        print(f"Model saved at {model_save_path}")
 
 # Plot and save the results of denoising
 def plot_results(original_clean_volume, noisy_volume, denoised_volume, src_file_name):
