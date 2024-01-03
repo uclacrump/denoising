@@ -39,46 +39,58 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model
     noisy_files = sorted(os.listdir(noisy_downsampled_dir))
     clean_files = sorted(os.listdir(clean_downsampled_dir))
 
-    for i, (noisy_file, clean_file) in enumerate(zip(noisy_files, clean_files)):
-        if not is_pretrained:
-            print("Training model on file", noisy_file)
+    for i, clean_file_name in enumerate(clean_files):
+        
 
-        noisy_file_path = os.path.join(noisy_downsampled_dir, noisy_file)
-        clean_file_path = os.path.join(clean_downsampled_dir, clean_file)
+    # for i, (noisy_file, clean_file) in enumerate(zip(noisy_files, clean_files)):
+    #     print(i)
+    #     print(noisy_file)
+    #     sys.exit()
 
-        # Load and preprocess the images for training
-        downsampled_average_volume = load_images(clean_file_path, (12, 100, 100, 100))
-        downsampled_random_volume = load_images(noisy_file_path, (12, 100, 100, 100))
+        
+        matching_noisy_file_names = [s for s in noisy_files if s.startswith(clean_file_name)]
 
-        downsampled_average_volume = np.transpose(downsampled_average_volume, (2, 0, 1, 3))
-        downsampled_random_volume = np.transpose(downsampled_random_volume, (2, 0, 1, 3))
+        for j, noisy_file_name in enumerate(matching_noisy_file_names):
 
-        z_depth = downsampled_average_volume.shape[0]
+            if not is_pretrained:
+                print("Training model on files", clean_file_name, noisy_file_name)
 
-        normalized_averages = []
-        normalized_randoms = []
+            noisy_file_path = os.path.join(noisy_downsampled_dir, noisy_file_name)
+            clean_file_path = os.path.join(clean_downsampled_dir, clean_file_name)
 
-        for z in range(z_depth):
-            min_value = min(np.min(downsampled_average_volume[z]), np.min(downsampled_random_volume[z]))
-            max_value = max(np.max(downsampled_average_volume[z]), np.max(downsampled_random_volume[z]))
+            # Load and preprocess the images for training
+            downsampled_average_volume = load_images(clean_file_path, (12, 100, 100, 100))
+            downsampled_random_volume = load_images(noisy_file_path, (12, 100, 100, 100))
 
-            normalized_average = (downsampled_average_volume[z] - min_value) / (max_value - min_value)
-            normalized_random = (downsampled_random_volume[z] - min_value) / (max_value - min_value)
-            
-            normalized_averages.append(np.expand_dims(np.expand_dims(normalized_average, axis=0), axis=-1))
-            normalized_randoms.append(np.expand_dims(np.expand_dims(normalized_random, axis=0), axis=-1))
+            downsampled_average_volume = np.transpose(downsampled_average_volume, (2, 0, 1, 3))
+            downsampled_random_volume = np.transpose(downsampled_random_volume, (2, 0, 1, 3))
 
-        # Train the model on each z-slice
-        if not is_pretrained:
-            for z, (normalized_random, normalized_average) in enumerate(zip(normalized_randoms, normalized_averages)):
-                model.fit(normalized_random, normalized_average, epochs=1, batch_size=1)
+            z_depth = downsampled_average_volume.shape[0]
+
+            normalized_averages = []
+            normalized_randoms = []
+
+            for z in range(z_depth):
+                min_value = min(np.min(downsampled_average_volume[z]), np.min(downsampled_random_volume[z]))
+                max_value = max(np.max(downsampled_average_volume[z]), np.max(downsampled_random_volume[z]))
+
+                normalized_average = (downsampled_average_volume[z] - min_value) / (max_value - min_value)
+                normalized_random = (downsampled_random_volume[z] - min_value) / (max_value - min_value)
                 
-                # Optional: use threshold callback to stop training early
-                # stop_at_threshold_callback = StopAtThresholdCallback(threshold=0.00009)
-                # model.fit(normalized_random, normalized_average, epochs=175, batch_size=1, callbacks=[stop_at_threshold_callback])
+                normalized_averages.append(np.expand_dims(np.expand_dims(normalized_average, axis=0), axis=-1))
+                normalized_randoms.append(np.expand_dims(np.expand_dims(normalized_random, axis=0), axis=-1))
+
+            # Train the model on each z-slice
+            if not is_pretrained:
+                for z, (normalized_random, normalized_average) in enumerate(zip(normalized_randoms, normalized_averages)):
+                    model.fit(normalized_random, normalized_average, epochs=1, batch_size=1)
+                    
+                    # Optional: use threshold callback to stop training early
+                    # stop_at_threshold_callback = StopAtThresholdCallback(threshold=0.00009)
+                    # model.fit(normalized_random, normalized_average, epochs=175, batch_size=1, callbacks=[stop_at_threshold_callback])
 
         # Denoise one of the images (for demonstration purposes)
-        if i == len(noisy_files) - 1:
+        if i == len(clean_files) - 1:
             NUM_GATES = 12
             original_shape = (NUM_GATES, 200, 380, 380)
             cropped_shape = (NUM_GATES, 200, 200, 200)
@@ -91,7 +103,7 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model
             
             predicted_volume = model.predict(normalized_randoms[z])
 
-            plot_results(normalized_averages[z], normalized_randoms[z], predicted_volume, noisy_file)
+            plot_results(normalized_averages[z], normalized_randoms[z], predicted_volume, clean_file_name)
 
     # Save the model after training is completed
     if not is_pretrained:
