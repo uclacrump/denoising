@@ -89,7 +89,7 @@ def train_model_on_directory(noisy_downsampled_dir, clean_downsampled_dir, model
                     # stop_at_threshold_callback = StopAtThresholdCallback(threshold=0.00009)
                     # model.fit(normalized_random, normalized_average, epochs=175, batch_size=1, callbacks=[stop_at_threshold_callback])
 
-        # Denoise one of the images (for demonstration purposes)
+        # Denoise one of the images (for demonstration purposes). Image is pulled from the training data, which is bad for obvious reasons. 
         if i == len(clean_files) - 1:
             NUM_GATES = 12
             original_shape = (NUM_GATES, 200, 380, 380)
